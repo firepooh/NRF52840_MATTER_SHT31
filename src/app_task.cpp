@@ -16,6 +16,11 @@
 
 #include <zephyr/logging/log.h>
 
+#include <app-common/zap-generated/attributes/Accessors.h>
+//#include <app/clusters/temperature-measurement-server/temperature-measurement-server.h>
+//#include <app/clusters/relative-humidity-measurement-server/relative-humidity-measurement-server.h>
+
+
 LOG_MODULE_DECLARE(app, CONFIG_CHIP_APP_LOG_LEVEL);
 
 using namespace ::chip;
