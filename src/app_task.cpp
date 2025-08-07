@@ -26,8 +26,8 @@
 #include <zephyr/device.h>
 #include <zephyr/drivers/sensor.h>
 
-//#define CONFIG_USE_VIRTUAL_SENSOR_DATA 
-#define CONFIG_USE_REAL_SENSOR_DATA
+#define CONFIG_USE_VIRTUAL_SENSOR_DATA 
+//#define CONFIG_USE_REAL_SENSOR_DATA
 #if defined(CONFIG_USE_VIRTUAL_SENSOR_DATA) && defined(CONFIG_USE_REAL_SENSOR_DATA)
   #error "Only one of CONFIG_USE_VIRTUAL_SENSOR_DATA or CONFIG_USE_REAL_SENSOR_DATA must be defined"
 #endif
