@@ -81,7 +81,7 @@ float ReadHumiditySensor()
     if (virtual_humidity > 60.0f) virtual_humidity = 60.0f;
     if (virtual_humidity < 40.0f) virtual_humidity = 40.0f;
 
-    LOG_INF("Virtual Humidity: %s%%", float_to_string(virtual_humidity, temp_buf, sizeof(temp_buf)));
+    LOG_DBG("Virtual Humidity: %s%%", float_to_string(virtual_humidity, temp_buf, sizeof(temp_buf)));
     
     return virtual_humidity;
 }
