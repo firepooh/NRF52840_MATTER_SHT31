@@ -8,21 +8,17 @@
 
 #include <zephyr/logging/log.h>
 
+#include <platform/CHIPDeviceLayer.h>
+#include <app/server/Server.h>
+
 #include <app-common/zap-generated/cluster-objects.h>
 #include <app-common/zap-generated/attributes/Accessors.h>
 
 
 LOG_MODULE_REGISTER(app, CONFIG_CHIP_APP_LOG_LEVEL);
 
-// 엔드포인트 ID (ZAP에서 설정한 값)
-constexpr chip::EndpointId kEndpointId = 1;
 
-// 실제 센서 드라이버에서 온도(℃)를 읽어오는 함수 (사용자 구현)
-float ReadTemperatureSensor();
-
-// 실제 센서 드라이버에서 상대습도(%)를 읽어오는 함수 (사용자 구현)
-float ReadHumiditySensor();
-
+#if 0
 // 온습도 값을 Matter 속성에 업데이트하는 함수
 void UpdateTemperatureHumidity()
 {
@@ -51,6 +47,8 @@ void UpdateTemperatureHumidity()
         printf("❌ 습도 업데이트 실패: 0x%02X\n", static_cast<uint8_t>(statusHum));
     }
 }
+#endif
+
 
 int main()
 {
