@@ -1,0 +1,23 @@
+manifest:
+  version: "0.14"
+
+  # 이 레포(애플리케이션) 위치. 워크플로우에서 checkout을 app/으로 하므로 app으로 고정
+  self:
+    path: app
+
+  # 기본 remote: nrfconnect GitHub org
+  remotes:
+    - name: nrfconnect
+      url-base: https://github.com/nrfconnect
+
+  defaults:
+    remote: nrfconnect
+
+  projects:
+    # Nordic SDK(NCS) 최상위 리포
+    - name: nrf
+      path: nrf
+      # 원하는 NCS 버전으로 고정 (예: v3.0.2, v2.6.1, main 등)
+      revision: v3.0.2
+      # nrf 의 west.yml을 그대로 가져와 Zephyr/nrfxlib/mcuboot/modules(=Matter 포함) 모두 가져옴
+      import: true
