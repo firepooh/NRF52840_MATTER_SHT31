@@ -40,6 +40,30 @@ jobs:
         pip3 install west
         west --version
         
+    - name: Check for west.yml
+      run: |
+        if [ ! -f "west.yml" ]; then
+          echo "Creating west.yml for NCS 3.0.2..."
+          cat > west.yml << 'EOF'
+        manifest:
+          version: "0.13"
+          defaults:
+            remote: ncs
+          remotes:
+            - name: ncs
+              url-base: https://github.com/nrfconnect
+          projects:
+            - name: nrf
+              remote: ncs
+              revision: v3.0.2
+              import: true
+          self:
+            path: template
+        EOF
+        else
+          echo "west.yml found"
+        fi
+        
     - name: Initialize west workspace
       run: |
         echo "Initializing west workspace..."
