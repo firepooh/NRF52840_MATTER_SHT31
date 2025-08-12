@@ -4,76 +4,54 @@ on: [push, pull_request, workflow_dispatch]
 
 jobs:
   build:
-    runs-on: ubuntu-latest
-    container: 
-      image: nordicplayground/nrfconnect-sdk:v3.0.2
-      
+    runs-on: ubuntu-22.04
+    container:
+      image: ghcr.io/nrfconnect/sdk-nrf-toolchain:v3.0.2
+      env:
+        ACCEPT_JLINK_LICENSE: 1
+      options: --privileged
+    defaults:
+      run:
+        shell: bash
+        
     steps:
     - name: Checkout
       uses: actions/checkout@v4
       with:
-        path: template
+        path: /ncs/project
         
-    - name: Check repository structure
+    - name: Setup workspace
       run: |
-        echo "Container working directory:"
-        pwd
-        ls -la
-        echo ""
-        echo "Template directory:"
-        ls -la template/
+        cd /ncs/project
         
-    - name: Setup workspace in container
-      run: |
-        # 작업 디렉토리로 이동
-        cd /workdir
+        # Git 안전 디렉토리 설정
+        git config --global --add safe.directory '*'
         
-        # west.yml이 있는 template 디렉토리에서 초기화
-        cd template
-        
-        echo "Initializing west workspace..."
+        # West 초기화
         west init -l .
         
-        echo "Updating dependencies..."
-        west update --narrow -o=--depth=1
+        # West 업데이트 (명령 가져오기)
+        west update
         
     - name: Build firmware
       run: |
-        cd /workdir/template
+        cd /ncs/project
         
-        echo "Attempting build..."
-        west build -b nrf52840dk/nrf52840 -- -DCONFIG_CHIP_DEVICE_PRODUCT_ID=32768
+        # 정리된 빌드 (경로 불일치 문제 방지)
+        west build -b nrf52840dk/nrf52840 --pristine \
+          -- -DCONFIG_CHIP_DEVICE_PRODUCT_ID=32768
         
     - name: Check build output
       run: |
-        cd /workdir/template
-        echo "Build directory contents:"
-        ls -la build/ || echo "No build directory"
-        echo ""
-        if [ -d "build/zephyr" ]; then
-          echo "Zephyr directory:"
-          ls -la build/zephyr/
-          echo ""
-          echo "Generated files:"
-          find build/zephyr -name "*.hex" -o -name "*.elf" -o -name "*.bin" | head -10
-        fi
-        
-    - name: Copy artifacts from container
-      run: |
-        cd /workdir/template
-        mkdir -p /tmp/artifacts
-        if [ -f "build/zephyr/zephyr.hex" ]; then
-          cp build/zephyr/zephyr.hex /tmp/artifacts/
-        fi
-        if [ -f "build/zephyr/zephyr.elf" ]; then
-          cp build/zephyr/zephyr.elf /tmp/artifacts/
-        fi
-        ls -la /tmp/artifacts/
+        cd /ncs/project
+        echo "Build completed successfully!"
+        find build -name "*.hex" -o -name "*.elf" -o -name "*.bin" | head -10
         
     - name: Upload artifacts
-      if: success()
       uses: actions/upload-artifact@v4
       with:
-        name: firmware-files
-        path: /tmp/artifacts/
+        name: firmware-nrf52840dk
+        path: |
+          /ncs/project/build/zephyr/zephyr.hex
+          /ncs/project/build/zephyr/zephyr.elf
         retention-days: 7
