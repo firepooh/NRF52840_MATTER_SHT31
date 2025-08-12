@@ -111,11 +111,7 @@ jobs:
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ${{
-            env.BOARD
-          }}-${{
-            env.NCS_VERSION
-          }}
+          name: "${{ env.BOARD }}-${{ env.NCS_VERSION }}"
           path: |
             /opt/ncs/ncs/build/zephyr/*.hex
             /opt/ncs/ncs/build/zephyr/*.bin
@@ -124,3 +120,4 @@ jobs:
             /opt/ncs/ncs/build/zephyr/zephyr*.map
             /opt/ncs/ncs/build/zephyr/*.json
           if-no-files-found: warn
+
