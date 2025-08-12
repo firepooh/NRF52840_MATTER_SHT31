@@ -1,5 +1,5 @@
 manifest:
-  version: "0.14"
+  version: "1.2"
 
   # 이 레포(애플리케이션) 위치. 워크플로우에서 checkout을 app/으로 하므로 app으로 고정
   self:
