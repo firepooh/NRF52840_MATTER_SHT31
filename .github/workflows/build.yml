@@ -17,12 +17,12 @@ jobs:
     steps:
     - name: Checkout
       uses: actions/checkout@v4
-      with:
-        path: /ncs/project
         
     - name: Setup workspace
       run: |
-        cd /ncs/project
+        # 현재 위치 확인
+        pwd
+        ls -la
         
         # Git 안전 디렉토리 설정
         git config --global --add safe.directory '*'
@@ -35,15 +35,12 @@ jobs:
         
     - name: Build firmware
       run: |
-        cd /ncs/project
-        
         # 정리된 빌드 (경로 불일치 문제 방지)
         west build -b nrf52840dk/nrf52840 --pristine \
           -- -DCONFIG_CHIP_DEVICE_PRODUCT_ID=32768
         
     - name: Check build output
       run: |
-        cd /ncs/project
         echo "Build completed successfully!"
         find build -name "*.hex" -o -name "*.elf" -o -name "*.bin" | head -10
         
@@ -52,6 +49,6 @@ jobs:
       with:
         name: firmware-nrf52840dk
         path: |
-          /ncs/project/build/zephyr/zephyr.hex
-          /ncs/project/build/zephyr/zephyr.elf
+          build/zephyr/zephyr.hex
+          build/zephyr/zephyr.elf
         retention-days: 7
