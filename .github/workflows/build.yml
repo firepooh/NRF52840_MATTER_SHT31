@@ -1,15 +1,89 @@
-name: Simple Test
+name: Nordic nRF Build
 
 on: [push, pull_request, workflow_dispatch]
 
 jobs:
-  hello:
+  build:
     runs-on: ubuntu-latest
     steps:
-    - run: echo "Hello from GitHub Actions"
-    
-  checkout-test:
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v4
-    - run: ls -la
+    - name: Checkout
+      uses: actions/checkout@v4
+      
+    - name: Check repository structure
+      run: |
+        echo "Repository contents:"
+        ls -la
+        echo ""
+        echo "Source directory:"
+        ls -la src/ || echo "No src directory"
+        echo ""
+        echo "Key files:"
+        ls -la *.conf *.yml *.txt CMakeLists.txt 2>/dev/null || echo "Some files missing"
+        
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          python3-pip \
+          python3-venv \
+          git \
+          cmake \
+          ninja-build \
+          ccache \
+          dfu-util \
+          device-tree-compiler \
+          wget \
+          xz-utils
+          
+    - name: Install west
+      run: |
+        pip3 install west
+        west --version
+        
+    - name: Initialize west workspace
+      run: |
+        echo "Initializing west workspace..."
+        west init -l .
+        echo "West initialized successfully"
+        
+    - name: Update west dependencies
+      run: |
+        echo "Updating dependencies..."
+        west update
+        echo "Dependencies updated"
+        
+    - name: Check west status
+      run: |
+        echo "West status:"
+        west status
+        echo ""
+        echo "West config:"
+        west config
+        
+    - name: Install Python dependencies
+      run: |
+        echo "Installing build requirements..."
+        pip3 install -r nrf/scripts/requirements-build.txt
+        
+    - name: Try simple build
+      run: |
+        echo "Attempting build..."
+        west build -b nrf52840dk/nrf52840 -- -DCONFIG_CHIP_DEVICE_PRODUCT_ID=32768
+        
+    - name: Check build output
+      run: |
+        echo "Build directory contents:"
+        ls -la build/ || echo "No build directory"
+        echo ""
+        echo "Zephyr directory:"
+        ls -la build/zephyr/ || echo "No zephyr directory"
+        
+    - name: Upload artifacts
+      if: success()
+      uses: actions/upload-artifact@v4
+      with:
+        name: firmware-files
+        path: |
+          build/zephyr/zephyr.hex
+          build/zephyr/zephyr.elf
+        retention-days: 7
