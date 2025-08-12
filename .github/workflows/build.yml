@@ -1,54 +1,89 @@
-name: Nordic nRF Build
+name: Build (nRF52840DK · NCS)
 
-on: [push, pull_request, workflow_dispatch]
+on:
+  push:
+    branches: [ master, main ]
+    paths-ignore: [ "**/*.md" ]
+  pull_request:
 
 jobs:
   build:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
+
+    # Nordic 공식 NCS 툴체인 컨테이너 사용
+    # 필요 시 v3.0.2를 원하는 NCS 태그로 바꾸면 됨 (예: v3.1.0-rc1, latest 등)
     container:
       image: ghcr.io/nrfconnect/sdk-nrf-toolchain:v3.0.2
-      env:
-        ACCEPT_JLINK_LICENSE: 1
-      options: --privileged
-    defaults:
-      run:
-        shell: bash
-        
+      options: --user root
+
+    strategy:
+      matrix:
+        board: [ nrf52840dk_nrf52840 ]
+        ncs:   [ v3.0.2 ]
+        config: [ debug, release ]  # release는 prj_release.conf 적용
+
     steps:
-    - name: Checkout
-      uses: actions/checkout@v4
-        
-    - name: Setup workspace
-      run: |
-        # 현재 위치 확인
-        pwd
-        ls -la
-        
-        # Git 안전 디렉토리 설정
-        git config --global --add safe.directory '*'
-        
-        # West 초기화
-        west init -l .
-        
-        # West 업데이트 (명령 가져오기)
-        west update
-        
-    - name: Build firmware
-      run: |
-        # 정리된 빌드 (경로 불일치 문제 방지)
-        west build -b nrf52840dk/nrf52840 --pristine \
-          -- -DCONFIG_CHIP_DEVICE_PRODUCT_ID=32768
-        
-    - name: Check build output
-      run: |
-        echo "Build completed successfully!"
-        find build -name "*.hex" -o -name "*.elf" -o -name "*.bin" | head -10
-        
-    - name: Upload artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: firmware-nrf52840dk
-        path: |
-          build/zephyr/zephyr.hex
-          build/zephyr/zephyr.elf
-        retention-days: 7
+      - name: Checkout app
+        uses: actions/checkout@v4
+
+      - name: Prepare west workspace (init only)
+        run: |
+          mkdir -p /opt/ncs
+          cd /opt/ncs
+          west init -m https://github.com/nrfconnect/sdk-nrf --mr ${{ matrix.ncs }} ncs
+
+      # NCS 모듈/툴체인 캐시 (속도 향상)
+      - name: Restore NCS cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            /opt/ncs/ncs/.west
+            /opt/ncs/ncs/zephyr
+            /opt/ncs/ncs/nrf
+            /opt/ncs/ncs/modules
+            /opt/ncs/ncs/nrfxlib
+            /opt/ncs/ncs/bootloader
+            /opt/ncs/ncs/tools
+          key: ncs-${{ matrix.ncs }}-${{ runner.os }}-v1
+          restore-keys: |
+            ncs-${{ matrix.ncs }}-${{ runner.os }}-
+
+      - name: Update & export NCS
+        working-directory: /opt/ncs/ncs
+        run: |
+          west update --narrow -o=--depth=1
+          west zephyr-export
+          west --version
+          cmake --version
+          python3 --version
+
+      - name: Build (${{ matrix.board }} · ${{ matrix.config }})
+        working-directory: /opt/ncs/ncs
+        env:
+          BOARD: ${{ matrix.board }}
+        run: |
+          EXTRA_ARGS=""
+          if [ "${{ matrix.config }}" = "release" ]; then
+            # 레포에 있는 prj_release.conf 사용
+            EXTRA_ARGS="-Dtemplate_EXTRA_CONF_FILE=prj_release.conf"
+          fi
+
+          # --sysbuild: MCUboot 포함 시스템 빌드
+          # 앱 소스는 체크아웃된 사용자 레포(root)
+          west build -p always -b "$BOARD" --sysbuild "$GITHUB_WORKSPACE" -- $EXTRA_ARGS
+
+      - name: List build outputs
+        run: |
+          echo "== HEX/BIN/ELF outputs =="
+          find /opt/ncs/ncs/build -maxdepth 4 -type f \( -name "*.hex" -o -name "*.bin" -o -name "*.elf" \) | sort || true
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.board }}-${{ matrix.config }}-${{ matrix.ncs }}
+          path: |
+            /opt/ncs/ncs/build/zephyr/zephyr*.hex
+            /opt/ncs/ncs/build/zephyr/*.bin
+            /opt/ncs/ncs/build/zephyr/*.elf
+            /opt/ncs/ncs/build/mcuboot/zephyr/*.hex
+          if-no-files-found: warn
