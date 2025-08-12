@@ -5,109 +5,75 @@ on: [push, pull_request, workflow_dispatch]
 jobs:
   build:
     runs-on: ubuntu-latest
+    container: 
+      image: nordicplayground/nrfconnect-sdk:v3.0.2
+      
     steps:
     - name: Checkout
       uses: actions/checkout@v4
-      
+      with:
+        path: template
+        
     - name: Check repository structure
       run: |
-        echo "Repository contents:"
+        echo "Container working directory:"
+        pwd
         ls -la
         echo ""
-        echo "Source directory:"
-        ls -la src/ || echo "No src directory"
-        echo ""
-        echo "Key files:"
-        ls -la *.conf *.yml *.txt CMakeLists.txt 2>/dev/null || echo "Some files missing"
+        echo "Template directory:"
+        ls -la template/
         
-    - name: Install system dependencies
+    - name: Setup workspace in container
       run: |
-        sudo apt-get update
-        sudo apt-get install -y \
-          python3-pip \
-          python3-venv \
-          git \
-          cmake \
-          ninja-build \
-          ccache \
-          dfu-util \
-          device-tree-compiler \
-          wget \
-          xz-utils
-          
-    - name: Install west
-      run: |
-        pip3 install west
-        west --version
+        # 작업 디렉토리로 이동
+        cd /workdir
         
-    - name: Check for west.yml
-      run: |
-        if [ ! -f "west.yml" ]; then
-          echo "Creating west.yml for NCS 3.0.2..."
-          cat > west.yml << 'EOF'
-        manifest:
-          version: "0.13"
-          defaults:
-            remote: ncs
-          remotes:
-            - name: ncs
-              url-base: https://github.com/nrfconnect
-          projects:
-            - name: nrf
-              remote: ncs
-              revision: v3.0.2
-              import: true
-          self:
-            path: template
-        EOF
-        else
-          echo "west.yml found"
-        fi
+        # west.yml이 있는 template 디렉토리에서 초기화
+        cd template
         
-    - name: Initialize west workspace
-      run: |
         echo "Initializing west workspace..."
         west init -l .
-        echo "West initialized successfully"
         
-    - name: Update west dependencies
-      run: |
         echo "Updating dependencies..."
-        west update
-        echo "Dependencies updated"
+        west update --narrow -o=--depth=1
         
-    - name: Check west status
+    - name: Build firmware
       run: |
-        echo "West status:"
-        west status
-        echo ""
-        echo "West config:"
-        west config
+        cd /workdir/template
         
-    - name: Install Python dependencies
-      run: |
-        echo "Installing build requirements..."
-        pip3 install -r nrf/scripts/requirements-build.txt
-        
-    - name: Try simple build
-      run: |
         echo "Attempting build..."
         west build -b nrf52840dk/nrf52840 -- -DCONFIG_CHIP_DEVICE_PRODUCT_ID=32768
         
     - name: Check build output
       run: |
+        cd /workdir/template
         echo "Build directory contents:"
         ls -la build/ || echo "No build directory"
         echo ""
-        echo "Zephyr directory:"
-        ls -la build/zephyr/ || echo "No zephyr directory"
+        if [ -d "build/zephyr" ]; then
+          echo "Zephyr directory:"
+          ls -la build/zephyr/
+          echo ""
+          echo "Generated files:"
+          find build/zephyr -name "*.hex" -o -name "*.elf" -o -name "*.bin" | head -10
+        fi
+        
+    - name: Copy artifacts from container
+      run: |
+        cd /workdir/template
+        mkdir -p /tmp/artifacts
+        if [ -f "build/zephyr/zephyr.hex" ]; then
+          cp build/zephyr/zephyr.hex /tmp/artifacts/
+        fi
+        if [ -f "build/zephyr/zephyr.elf" ]; then
+          cp build/zephyr/zephyr.elf /tmp/artifacts/
+        fi
+        ls -la /tmp/artifacts/
         
     - name: Upload artifacts
       if: success()
       uses: actions/upload-artifact@v4
       with:
         name: firmware-files
-        path: |
-          build/zephyr/zephyr.hex
-          build/zephyr/zephyr.elf
+        path: /tmp/artifacts/
         retention-days: 7
