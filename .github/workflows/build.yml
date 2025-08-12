@@ -1,49 +1,68 @@
-name: Build (nRF52840DK · NCS)
+name: Build · nRF52840DK (NCS · Container)
 
 on:
   push:
-    branches: [ master, main ]
+    branches: [ main, master ]
   pull_request:
+  workflow_dispatch:
+
+env:
+  BOARD: nrf52840dk_nrf52840
+  NCS_VERSION: v3.0.2   # 필요시 변경
+  APP_DIR: ${{ github.workspace }}
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
+    # 🧰 Nordic 컨테이너: west/cmake/ninja 포함
+    # 문제가 있으면 'main' 유지, 특정 버전 고정하려면 :v3.0.2 등으로 교체
     container:
-      image: ghcr.io/nrfconnect/sdk-nrf-toolchain:latest
+      image: ghcr.io/nrfconnect/sdk-nrf:v3.0.2
       options: --user root
 
-    strategy:
-      matrix:
-        board:  [ nrf52840dk_nrf52840 ]
-        ncs:    [ v3.0.2 ]
-        config: [ debug ]
-
     steps:
-      - name: Checkout app
+      - name: Checkout app repository
         uses: actions/checkout@v4
 
-      # ❗ west가 없으면 설치(+ PATH 등록). 있으면 버전만 출력
-      - name: Ensure west available
+      # 일부 태그에서 pip/west가 빠져있는 경우 대비 (있으면 버전만 출력)
+      - name: Ensure pip & west
+        shell: bash
         run: |
+          set -euxo pipefail
+          if ! python3 -c "import pip" >/dev/null 2>&1; then
+            python3 -m ensurepip --upgrade || true
+          fi
+          if ! python3 -c "import pip" >/dev/null 2>&1; then
+            if command -v apt-get >/dev/null 2>&1; then
+              apt-get update
+              apt-get install -y python3-pip
+            elif command -v apk >/dev/null 2>&1; then
+              apk add --no-cache py3-pip
+            fi
+          fi
+          python3 -m pip install --upgrade pip
           if ! command -v west >/dev/null 2>&1; then
             python3 -m pip install --user --upgrade west
             echo "$HOME/.local/bin" >> "$GITHUB_PATH"
           fi
-          which west || true
+          which west
           west --version
+          cmake --version
+          ninja --version || true
 
-      # Git 안전 디렉토리 경고 방지 (Nordic 문서 권장)
+      # 컨테이너에서 git 안전 디렉토리 경고 방지
       - name: Git safe.directory
         run: git config --global --add safe.directory '*'
 
-      - name: Prepare west workspace (init)
+      - name: Prepare NCS workspace (west init)
         run: |
           mkdir -p /opt/ncs
           cd /opt/ncs
-          west init -m https://github.com/nrfconnect/sdk-nrf --mr ${{ matrix.ncs }} ncs
+          west init -m https://github.com/nrfconnect/sdk-nrf --mr "${NCS_VERSION}" ncs
 
-      - name: Cache NCS deps
+      # 👉 NCS 모듈 캐시 (빌드 시간 단축)
+      - name: Cache NCS dependencies
         uses: actions/cache@v4
         with:
           path: |
@@ -53,7 +72,9 @@ jobs:
             /opt/ncs/ncs/modules
             /opt/ncs/ncs/nrfxlib
             /opt/ncs/ncs/bootloader
-          key: ncs-${{ matrix.ncs }}-${{ runner.os }}-v1
+          key: ncs-${{ env.NCS_VERSION }}-${{ runner.os }}-v1
+          restore-keys: |
+            ncs-${{ env.NCS_VERSION }}-
 
       - name: Update & export NCS
         working-directory: /opt/ncs/ncs
@@ -61,19 +82,45 @@ jobs:
           west update --narrow -o=--depth=1
           west zephyr-export
 
-      - name: Build (${{ matrix.board }})
+      # 필요 시 EXTRA_CONF/OVERLAY 등 추가
+      - name: Build (sysbuild · ${BOARD})
         working-directory: /opt/ncs/ncs
         env:
-          BOARD: ${{ matrix.board }}
+          BOARD: ${{ env.BOARD }}
+          APP_DIR: ${{ env.APP_DIR }}
         run: |
-          west build -p always -b "$BOARD" --sysbuild "$GITHUB_WORKSPACE"
+          # 예) 오버레이 쓰려면: EXTRA="-DOVERLAY_CONFIG=prj_release.conf"
+          EXTRA=""
+          west build -p always -b "$BOARD" --sysbuild "$APP_DIR" -- $EXTRA
+
+      # 선택: 리포트 타깃 (가능한 버전에서만 실행, 실패해도 워크플로우 계속)
+      - name: Reports (partition/size)
+        if: always()
+        working-directory: /opt/ncs/ncs
+        continue-on-error: true
+        run: |
+          west build -t partition_manager_report || true
+          west build -t rom_report || true
+          west build -t ram_report || true
+
+      - name: List build outputs
+        run: |
+          echo "== Build tree =="
+          find /opt/ncs/ncs/build -maxdepth 4 -type f | sort || true
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.board }}-${{ matrix.config }}-${{ matrix.ncs }}
+          name: ${{
+            env.BOARD
+          }}-${{
+            env.NCS_VERSION
+          }}
           path: |
             /opt/ncs/ncs/build/zephyr/*.hex
             /opt/ncs/ncs/build/zephyr/*.bin
             /opt/ncs/ncs/build/zephyr/*.elf
             /opt/ncs/ncs/build/mcuboot/zephyr/*.hex
+            /opt/ncs/ncs/build/zephyr/zephyr*.map
+            /opt/ncs/ncs/build/zephyr/*.json
+          if-no-files-found: warn
