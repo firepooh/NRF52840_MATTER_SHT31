@@ -1,0 +1,44 @@
+1. python 실행 위치. 
+C:\ncs\v3.0.2\modules\lib\matter>
+
+2. 실행 명령어
+python "scripts/tools/nrfconnect/generate_nrfconnect_chip_factory_data.py" `
+  --sn "11223344556677889900" `
+  --vendor_id 65521 `
+  --product_id 32774 `
+  --vendor_name "JYP" `
+  --product_name "SensorA" `
+  --date "2022-02-02" `
+  --hw_ver 1 `
+  --hw_ver_str "prerelase" `
+  --dac_cert "credentials/development/attestation/Matter-Development-DAC-FFF1-8006-Cert.der" `
+  --dac_key "credentials/development/attestation/Matter-Development-DAC-FFF1-8006-Key.der" `
+  --pai_cert "credentials/development/attestation/Matter-Development-PAI-FFF1-noPID-Cert.der" `
+  --spake2_it 1000 `
+  --spake2_salt "U1BBS0UyUCBLZXkgU2FsdA==" `
+  --discriminator "0xF00" `
+  --generate_rd_uid `
+  --passcode 20202021 `
+  --product_finish "matte" `
+  --product_color "black" `
+  --out "build/factory_data_device_a.hex" `
+  --schema "scripts/tools/nrfconnect/nrfconnect_factory_data.schema" `
+  --offset "0xf7000" `
+  --enable_key "00112233445566778899AABBCCDDEEFF" `
+  --size "0x1000"
+
+3. build 폴더에 파일 생성.
+
+4. 보드에 적용
+  nrfjprog --eraseall
+  west flash
+  nrfjprog --program factory_data_device_a.hex --sectorerase --verify
+
+5. 보드 적용전 고려 사항
+  - sysbuild.conf 
+  # Factory Data 생성 비활성화
+  SB_CONFIG_MATTER_FACTORY_DATA_GENERATE=n  
+  - prj.conf 
+  # Enable Factory Data feature
+  CONFIG_CHIP_FACTORY_DATA=y
+  CONFIG_CHIP_FACTORY_DATA_BUILD=n
