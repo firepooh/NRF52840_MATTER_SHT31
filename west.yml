@@ -1,0 +1,12 @@
+manifest:
+  version: "1.2"
+
+  self:
+    path: .
+
+  projects:
+    - name: nrf
+      url: https://github.com/nrfconnect/sdk-nrf.git   # 절대 URL 권장
+      path: nrf
+      revision: v3.0.2                                  # 위 NCS_TAG와 맞추면 좋음
+      import: true                                      # zephyr/nrfxlib/modules 등 자동 포함
